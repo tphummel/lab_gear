@@ -39,6 +39,10 @@ func main() {
 	// Health check — no auth
 	mux.HandleFunc("GET /healthz", h.Health)
 
+	// API docs — no auth
+	mux.HandleFunc("GET /openapi.yaml", handlers.OpenAPISpec)
+	mux.HandleFunc("GET /docs", handlers.Docs)
+
 	// Machine CRUD — Bearer token auth required
 	mux.Handle("POST /api/v1/machines", middleware.Auth(token, http.HandlerFunc(h.CreateMachine)))
 	mux.Handle("GET /api/v1/machines", middleware.Auth(token, http.HandlerFunc(h.ListMachines)))
