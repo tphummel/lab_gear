@@ -1,4 +1,8 @@
 bin/
 *.db
+coverage.out
+coverage.html
 terraform-provider-lab_gear/dist/
 terraform-provider-lab_gear/terraform-provider-lab_gear
+terraform-provider-lab_gear/coverage.out
+terraform-provider-lab_gear/coverage.html
