@@ -10,7 +10,54 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  smoke-test:
+    name: k6 smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Tidy dependencies
+        run: GONOSUMDB='*' go mod tidy
+
+      - name: Build binary
+        run: go build -o bin/lab_gear ./cmd/server
+
+      - name: Start server with in-memory database
+        run: |
+          API_TOKEN=smoke-test-token DB_PATH=:memory: ./bin/lab_gear &
+          echo $! > /tmp/lab_gear_smoke.pid
+
+      - name: Wait for server to be ready
+        run: |
+          for i in $(seq 1 10); do
+            if curl -sf http://localhost:8080/healthz; then
+              echo "Server is ready"
+              break
+            fi
+            echo "Waiting for server... ($i/10)"
+            sleep 1
+          done
+
+      - name: Set up k6
+        uses: grafana/setup-k6-action@v1
+
+      - name: Run k6 smoke test
+        run: k6 run -e API_TOKEN=smoke-test-token -e BASE_URL=http://localhost:8080 k6/scripts/smoke.js
+
+      - name: Stop server
+        if: always()
+        run: kill $(cat /tmp/lab_gear_smoke.pid) 2>/dev/null || true
+
   build-and-push:
+    name: Build and push Docker image
+    needs: smoke-test
     runs-on: ubuntu-latest
     permissions:
       contents: read
