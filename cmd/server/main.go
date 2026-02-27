@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tphummel/lab_gear/internal/db"
 	"github.com/tphummel/lab_gear/internal/handlers"
 	"github.com/tphummel/lab_gear/internal/middleware"
@@ -50,6 +51,9 @@ func main() {
 
 	// Health check — no auth
 	mux.HandleFunc("GET /healthz", h.Health)
+
+	// Prometheus metrics — no auth
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	// API docs — no auth
 	mux.HandleFunc("GET /openapi.yaml", handlers.OpenAPISpec)
