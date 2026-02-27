@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/tphummel/lab_gear/internal/db"
 	"github.com/tphummel/lab_gear/internal/handlers"
@@ -429,7 +430,10 @@ func TestUpdateMachine_Valid(t *testing.T) {
 	if updated.ID != created.ID {
 		t.Errorf("ID changed: got %q, want %q", updated.ID, created.ID)
 	}
-	if !updated.CreatedAt.Equal(created.CreatedAt) {
+	// The DB stores timestamps as RFC3339 (second precision). Truncate both
+	// sides before comparing so the test is robust to sub-second differences
+	// between the in-memory create response and the post-DB-round-trip value.
+	if !updated.CreatedAt.Truncate(time.Second).Equal(created.CreatedAt.Truncate(time.Second)) {
 		t.Errorf("CreatedAt changed: got %v, want %v", updated.CreatedAt, created.CreatedAt)
 	}
 }
@@ -550,5 +554,102 @@ func TestResponseContentType(t *testing.T) {
 	ct := w.Header().Get("Content-Type")
 	if ct != "application/json" {
 		t.Errorf("Content-Type: got %q, want %q", ct, "application/json")
+	}
+}
+
+func TestErrorResponseContentType(t *testing.T) {
+	mux, _ := newTestMux(t)
+
+	// A 400 error (validation failure) should also return application/json.
+	payload := map[string]any{"kind": "proxmox"} // missing required fields
+	body, _ := json.Marshal(payload)
+	w := serve(mux, authReq(http.MethodPost, "/api/v1/machines", body))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+	ct := w.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("Content-Type on error: got %q, want application/json", ct)
+	}
+}
+
+// --- Edge cases ---
+
+func TestCreateMachine_EmptyBody(t *testing.T) {
+	mux, _ := newTestMux(t)
+	// An empty body cannot be decoded as JSON — expect 400.
+	req := authReq(http.MethodPost, "/api/v1/machines", []byte{})
+	req.Header.Set("Content-Type", "application/json")
+	w := serve(mux, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("empty body: got %d, want 400", w.Code)
+	}
+}
+
+func TestUpdateMachine_EmptyBody(t *testing.T) {
+	mux, _ := newTestMux(t)
+
+	// Create a machine to target.
+	createPayload := map[string]any{"name": "ws", "kind": "workstation", "make": "Dell", "model": "XPS"}
+	body, _ := json.Marshal(createPayload)
+	createW := serve(mux, authReq(http.MethodPost, "/api/v1/machines", body))
+	if createW.Code != http.StatusCreated {
+		t.Fatalf("create: %s", createW.Body.String())
+	}
+	var created models.Machine
+	decodeBody(t, createW, &created)
+
+	req := authReq(http.MethodPut, "/api/v1/machines/"+created.ID, []byte{})
+	req.Header.Set("Content-Type", "application/json")
+	w := serve(mux, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("empty body: got %d, want 400", w.Code)
+	}
+}
+
+func TestCreateMachine_UTF8Fields(t *testing.T) {
+	mux, _ := newTestMux(t)
+
+	payload := map[string]any{
+		"name":     "节点1",                         // Chinese characters
+		"kind":     "sbc",
+		"make":     "Raspberry Pî",                // Unicode in make
+		"model":    "Modèle-Spécial",              // French accents in model
+		"location": "Büro Regal 3",               // German umlaut
+		"notes":    "正常运行 ✓",                    // Mixed script + emoji
+	}
+	body, _ := json.Marshal(payload)
+	w := serve(mux, authReq(http.MethodPost, "/api/v1/machines", body))
+	if w.Code != http.StatusCreated {
+		t.Errorf("UTF-8 fields: got %d, want 201\nbody: %s", w.Code, w.Body.String())
+	}
+
+	var m models.Machine
+	decodeBody(t, w, &m)
+	if m.Name != "节点1" {
+		t.Errorf("Name round-trip: got %q, want %q", m.Name, "节点1")
+	}
+	if m.Notes != "正常运行 ✓" {
+		t.Errorf("Notes round-trip: got %q", m.Notes)
+	}
+}
+
+func TestListMachines_UTF8RoundTrip(t *testing.T) {
+	mux, _ := newTestMux(t)
+
+	payload := map[string]any{"name": "пи01", "kind": "sbc", "make": "RPi", "model": "4B"}
+	body, _ := json.Marshal(payload)
+	if w := serve(mux, authReq(http.MethodPost, "/api/v1/machines", body)); w.Code != http.StatusCreated {
+		t.Fatalf("create: %s", w.Body.String())
+	}
+
+	w := serve(mux, authReq(http.MethodGet, "/api/v1/machines", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("list: %d", w.Code)
+	}
+	var machines []models.Machine
+	decodeBody(t, w, &machines)
+	if len(machines) != 1 || machines[0].Name != "пи01" {
+		t.Errorf("UTF-8 name not preserved in list: %+v", machines)
 	}
 }

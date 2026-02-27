@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/tphummel/lab_gear/terraform-provider-lab_gear/internal/apiclient"
 	"github.com/tphummel/lab_gear/terraform-provider-lab_gear/internal/resources"
 )
 
@@ -74,7 +75,7 @@ func (p *labGearProvider) Configure(ctx context.Context, req provider.ConfigureR
 		return
 	}
 
-	client := NewClient(endpoint, token)
+	client := apiclient.NewClient(endpoint, token)
 	resp.ResourceData = client
 	resp.DataSourceData = client
 }

@@ -81,6 +81,42 @@ func TestAuth(t *testing.T) {
 	}
 }
 
+func TestAuth_CaseSensitive(t *testing.T) {
+	// "bearer" (lowercase) must not be accepted — only "Bearer".
+	handler := middleware.Auth(testToken, okHandler)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "bearer "+testToken)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("lowercase 'bearer': got %d, want 401", rec.Code)
+	}
+}
+
+func TestAuth_TokenWithLeadingSpace(t *testing.T) {
+	// A space before the token value should not authenticate.
+	handler := middleware.Auth(testToken, okHandler)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer  "+testToken) // two spaces
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("token with leading space: got %d, want 401", rec.Code)
+	}
+}
+
+func TestAuth_UnauthorizedResponseIsJSON(t *testing.T) {
+	handler := middleware.Auth(testToken, okHandler)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	ct := rec.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("Content-Type on 401: got %q, want application/json", ct)
+	}
+}
+
 func TestAuth_DifferentTokens(t *testing.T) {
 	// Verifies that the middleware uses the token it was constructed with,
 	// not some global state.

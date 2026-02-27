@@ -5,7 +5,7 @@ override VERSION := $(shell echo "$(VERSION)" | sed 's/^v//')
 BINARY := terraform-provider-lab_gear
 DIST   := dist
 
-.PHONY: build install release clean test
+.PHONY: build install release clean test cover
 
 # Local build — produces ./terraform-provider-lab_gear
 build:
@@ -43,4 +43,9 @@ clean:
 	rm -rf $(DIST) $(BINARY)
 
 test:
-	go test ./...
+	go test -race ./...
+
+cover:
+	go test -race -coverprofile=coverage.out -covermode=atomic ./...
+	go tool cover -func=coverage.out
+	go tool cover -html=coverage.out -o coverage.html

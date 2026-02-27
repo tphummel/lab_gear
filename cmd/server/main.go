@@ -11,20 +11,29 @@ import (
 	"github.com/tphummel/lab_gear/internal/middleware"
 )
 
-func main() {
-	token := os.Getenv("API_TOKEN")
+// loadConfig reads service configuration from environment variables and
+// applies defaults. It returns an error when a required variable is absent.
+func loadConfig() (token, dbPath, port string, err error) {
+	token = os.Getenv("API_TOKEN")
 	if token == "" {
-		log.Fatal("API_TOKEN environment variable is required")
+		err = fmt.Errorf("API_TOKEN environment variable is required")
+		return
 	}
-
-	dbPath := os.Getenv("DB_PATH")
+	dbPath = os.Getenv("DB_PATH")
 	if dbPath == "" {
 		dbPath = "./lab_gear.db"
 	}
-
-	port := os.Getenv("PORT")
+	port = os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
+	}
+	return
+}
+
+func main() {
+	token, dbPath, port, err := loadConfig()
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	database, err := db.New(dbPath)
