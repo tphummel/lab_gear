@@ -365,3 +365,11 @@ The `LAB_ENDPOINT` and `LAB_API_KEY` environment variables are set in the Atlant
 - **Structured logging**: Add `slog` middleware for request logging before production use.
 - **Backup**: Periodic SQLite backup via Litestream or a simple cron job copying the database file.
 - **Migration framework**: If the schema evolves, a proper migration system (goose, golang-migrate) would replace the current `CREATE TABLE IF NOT EXISTS` approach.
+## Provider Build & Publish Automation
+
+The repository includes a GitHub Actions workflow at `.github/workflows/provider-release.yml` that builds the Terraform provider on every commit to `main`.
+
+- **On push to `main`**: runs tests, cross-compiles provider binaries, and uploads them as GitHub Actions artifacts.
+- **On tag `v*`**: additionally publishes zipped binaries and checksums to a GitHub Release.
+
+This provides repeatable artifacts from every main-branch commit while keeping versioned release assets for downstream consumption.

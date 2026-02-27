@@ -1,0 +1,74 @@
+name: Provider Build and Publish
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform-provider-lab
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: terraform-provider-lab/go.mod
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build provider binaries
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_REF_TYPE}" != "tag" ]]; then
+            VERSION="main-${GITHUB_SHA::7}"
+          fi
+
+          mkdir -p dist
+          for GOOS in linux darwin windows; do
+            for GOARCH in amd64 arm64; do
+              BIN_NAME="terraform-provider-lab"
+              EXT=""
+              if [[ "$GOOS" == "windows" ]]; then
+                EXT=".exe"
+              fi
+
+              OUT_DIR="dist/${GOOS}_${GOARCH}"
+              mkdir -p "${OUT_DIR}"
+              GOOS="$GOOS" GOARCH="$GOARCH" CGO_ENABLED=0 go build -o "${OUT_DIR}/${BIN_NAME}${EXT}" .
+
+              ARCHIVE="dist/terraform-provider-lab_${VERSION}_${GOOS}_${GOARCH}.zip"
+              (cd "${OUT_DIR}" && zip -q "../../$(basename "${ARCHIVE}")" "${BIN_NAME}${EXT}")
+            done
+          done
+
+          (cd dist && sha256sum terraform-provider-lab_${VERSION}_*.zip > terraform-provider-lab_${VERSION}_SHA256SUMS)
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-provider-lab-${{ github.ref_name }}
+          path: terraform-provider-lab/dist/*
+
+      - name: Publish release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: terraform-provider-lab/dist/*
