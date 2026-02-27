@@ -9,11 +9,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/tphummel/lab_gear/terraform-provider-lab_gear/internal/provider"
+	"github.com/tphummel/lab_gear/terraform-provider-lab_gear/internal/apiclient"
 )
 
 type machineResource struct {
-	client *provider.Client
+	client *apiclient.Client
 }
 
 // machineModel maps the Terraform schema attributes to Go values.
@@ -93,11 +93,11 @@ func (r *machineResource) Configure(_ context.Context, req resource.ConfigureReq
 	if req.ProviderData == nil {
 		return
 	}
-	client, ok := req.ProviderData.(*provider.Client)
+	client, ok := req.ProviderData.(*apiclient.Client)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected provider data type",
-			fmt.Sprintf("Expected *provider.Client, got %T", req.ProviderData),
+			fmt.Sprintf("Expected *apiclient.Client, got %T", req.ProviderData),
 		)
 		return
 	}
@@ -111,7 +111,7 @@ func (r *machineResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	created, err := r.client.CreateMachine(ctx, provider.Machine{
+	created, err := r.client.CreateMachine(ctx, apiclient.Machine{
 		Name:      plan.Name.ValueString(),
 		Kind:      plan.Kind.ValueString(),
 		Make:      plan.Make.ValueString(),
@@ -163,7 +163,7 @@ func (r *machineResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	updated, err := r.client.UpdateMachine(ctx, provider.Machine{
+	updated, err := r.client.UpdateMachine(ctx, apiclient.Machine{
 		ID:        state.ID.ValueString(),
 		Name:      plan.Name.ValueString(),
 		Kind:      plan.Kind.ValueString(),
@@ -217,7 +217,7 @@ func (r *machineResource) ImportState(ctx context.Context, req resource.ImportSt
 }
 
 // machineToState copies API response fields into the Terraform state model.
-func machineToState(m *provider.Machine, s *machineModel) {
+func machineToState(m *apiclient.Machine, s *machineModel) {
 	s.ID = types.StringValue(m.ID)
 	s.Name = types.StringValue(m.Name)
 	s.Kind = types.StringValue(m.Kind)

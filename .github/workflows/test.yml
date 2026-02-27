@@ -19,12 +19,14 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Tidy dependencies
+        # go mod tidy creates/completes go.sum (the committed file has only the
+        # .mod hash for modernc.org/sqlite, not the module archive hash).
+        # GONOSUMDB=* computes hashes locally instead of querying sum.golang.org.
+        run: GONOSUMDB='*' go mod tidy
+
       - name: Run tests with coverage
-        # -mod=mod lets Go download missing modules and update go.sum during
-        # the run (go.sum has only the .mod hash for modernc.org/sqlite, not
-        # the module archive hash). GONOSUMDB=* skips the checksum database so
-        # private/air-gapped modules are not blocked.
-        run: GONOSUMDB='*' go test -mod=mod -race -coverprofile=coverage.out -covermode=atomic ./...
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Print coverage summary
         run: go tool cover -func=coverage.out
@@ -52,8 +54,13 @@ jobs:
         with:
           go-version-file: terraform-provider-lab_gear/go.mod
 
+      - name: Tidy dependencies
+        # The provider has no committed go.sum; go mod tidy creates it.
+        # GONOSUMDB=* computes hashes locally instead of querying sum.golang.org.
+        run: GONOSUMDB='*' go mod tidy
+
       - name: Run tests with coverage
-        run: GONOSUMDB='*' go test -mod=mod -race -coverprofile=coverage.out -covermode=atomic ./...
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Print coverage summary
         run: go tool cover -func=coverage.out

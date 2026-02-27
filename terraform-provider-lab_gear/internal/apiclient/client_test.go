@@ -1,4 +1,4 @@
-package provider_test
+package apiclient_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/tphummel/lab_gear/terraform-provider-lab_gear/internal/provider"
+	"github.com/tphummel/lab_gear/terraform-provider-lab_gear/internal/apiclient"
 )
 
 const testToken = "test-api-key"
@@ -15,16 +15,16 @@ const testToken = "test-api-key"
 // newTestServer starts an httptest.Server that behaves like the lab_gear REST
 // API. handler is called with the matched method and path; it writes the
 // desired response.
-func newTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *provider.Client) {
+func newTestServer(t *testing.T, handler http.HandlerFunc) (*httptest.Server, *apiclient.Client) {
 	t.Helper()
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
-	client := provider.NewClient(srv.URL, testToken)
+	client := apiclient.NewClient(srv.URL, testToken)
 	return srv, client
 }
 
 // writeMachine serialises m as JSON with statusCode.
-func writeMachine(w http.ResponseWriter, statusCode int, m provider.Machine) {
+func writeMachine(w http.ResponseWriter, statusCode int, m apiclient.Machine) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(m)
@@ -33,7 +33,7 @@ func writeMachine(w http.ResponseWriter, statusCode int, m provider.Machine) {
 // --- CreateMachine ---
 
 func TestClient_CreateMachine_Success(t *testing.T) {
-	want := provider.Machine{
+	want := apiclient.Machine{
 		ID:    "uuid-1",
 		Name:  "pve1",
 		Kind:  "proxmox",
@@ -54,7 +54,7 @@ func TestClient_CreateMachine_Success(t *testing.T) {
 		writeMachine(w, http.StatusCreated, want)
 	})
 
-	got, err := client.CreateMachine(context.Background(), provider.Machine{
+	got, err := client.CreateMachine(context.Background(), apiclient.Machine{
 		Name:  "pve1",
 		Kind:  "proxmox",
 		Make:  "Dell",
@@ -76,7 +76,7 @@ func TestClient_CreateMachine_ServerError(t *testing.T) {
 		w.WriteHeader(http.StatusBadRequest)
 	})
 
-	_, err := client.CreateMachine(context.Background(), provider.Machine{})
+	_, err := client.CreateMachine(context.Background(), apiclient.Machine{})
 	if err == nil {
 		t.Fatal("expected error on non-201 response, got nil")
 	}
@@ -85,7 +85,7 @@ func TestClient_CreateMachine_ServerError(t *testing.T) {
 // --- GetMachine ---
 
 func TestClient_GetMachine_Found(t *testing.T) {
-	want := provider.Machine{ID: "uuid-2", Name: "nas01", Kind: "nas", Make: "Synology", Model: "DS920+"}
+	want := apiclient.Machine{ID: "uuid-2", Name: "nas01", Kind: "nas", Make: "Synology", Model: "DS920+"}
 
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -137,7 +137,7 @@ func TestClient_GetMachine_ServerError(t *testing.T) {
 // --- UpdateMachine ---
 
 func TestClient_UpdateMachine_Success(t *testing.T) {
-	want := provider.Machine{ID: "uuid-3", Name: "nas01", Kind: "nas", Make: "Synology", Model: "DS923+", RAMGB: 8}
+	want := apiclient.Machine{ID: "uuid-3", Name: "nas01", Kind: "nas", Make: "Synology", Model: "DS923+", RAMGB: 8}
 
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPut {
@@ -149,7 +149,7 @@ func TestClient_UpdateMachine_Success(t *testing.T) {
 		writeMachine(w, http.StatusOK, want)
 	})
 
-	got, err := client.UpdateMachine(context.Background(), provider.Machine{ID: "uuid-3", Name: "nas01", Kind: "nas", Make: "Synology", Model: "DS923+", RAMGB: 8})
+	got, err := client.UpdateMachine(context.Background(), apiclient.Machine{ID: "uuid-3", Name: "nas01", Kind: "nas", Make: "Synology", Model: "DS923+", RAMGB: 8})
 	if err != nil {
 		t.Fatalf("UpdateMachine: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestClient_UpdateMachine_NotFound(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 	})
 
-	_, err := client.UpdateMachine(context.Background(), provider.Machine{ID: "ghost"})
+	_, err := client.UpdateMachine(context.Background(), apiclient.Machine{ID: "ghost"})
 	if err == nil {
 		t.Fatal("expected error on 404, got nil")
 	}
@@ -177,7 +177,7 @@ func TestClient_UpdateMachine_ServerError(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	})
 
-	_, err := client.UpdateMachine(context.Background(), provider.Machine{ID: "some-id"})
+	_, err := client.UpdateMachine(context.Background(), apiclient.Machine{ID: "some-id"})
 	if err == nil {
 		t.Fatal("expected error on 500 response, got nil")
 	}
@@ -244,10 +244,10 @@ func TestClient_SetsContentTypeOnWrite(t *testing.T) {
 	var gotCT string
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		gotCT = r.Header.Get("Content-Type")
-		writeMachine(w, http.StatusCreated, provider.Machine{ID: "x"})
+		writeMachine(w, http.StatusCreated, apiclient.Machine{ID: "x"})
 	})
 
-	_, _ = client.CreateMachine(context.Background(), provider.Machine{Name: "n", Kind: "nas", Make: "m", Model: "m"})
+	_, _ = client.CreateMachine(context.Background(), apiclient.Machine{Name: "n", Kind: "nas", Make: "m", Model: "m"})
 	if gotCT != "application/json" {
 		t.Errorf("Content-Type: got %q, want application/json", gotCT)
 	}

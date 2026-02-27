@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/tphummel/lab_gear/internal/db"
 	"github.com/tphummel/lab_gear/internal/handlers"
@@ -429,7 +430,10 @@ func TestUpdateMachine_Valid(t *testing.T) {
 	if updated.ID != created.ID {
 		t.Errorf("ID changed: got %q, want %q", updated.ID, created.ID)
 	}
-	if !updated.CreatedAt.Equal(created.CreatedAt) {
+	// The DB stores timestamps as RFC3339 (second precision). Truncate both
+	// sides before comparing so the test is robust to sub-second differences
+	// between the in-memory create response and the post-DB-round-trip value.
+	if !updated.CreatedAt.Truncate(time.Second).Equal(created.CreatedAt.Truncate(time.Second)) {
 		t.Errorf("CreatedAt changed: got %v, want %v", updated.CreatedAt, created.CreatedAt)
 	}
 }
