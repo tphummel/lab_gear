@@ -1,0 +1,71 @@
+name: Test
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+
+jobs:
+  test-service:
+    name: Service tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Download dependencies
+        # GONOSUMDB=* avoids sum-database lookups; go mod download populates
+        # the missing h1: hashes in go.sum so subsequent test runs are
+        # reproducible without network access.
+        run: GONOSUMDB='*' go mod download
+
+      - name: Run tests with coverage
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Print coverage summary
+        run: go tool cover -func=coverage.out
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-coverage
+          path: coverage.out
+          retention-days: 7
+
+  test-provider:
+    name: Terraform provider tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform-provider-lab_gear
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: terraform-provider-lab_gear/go.mod
+
+      - name: Download dependencies
+        run: GONOSUMDB='*' go mod download
+
+      - name: Run tests with coverage
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Print coverage summary
+        run: go tool cover -func=coverage.out
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: provider-coverage
+          path: terraform-provider-lab_gear/coverage.out
+          retention-days: 7
