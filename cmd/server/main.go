@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -36,6 +37,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, nil)))
+
 	database, err := db.New(dbPath)
 	if err != nil {
 		log.Fatalf("failed to open database: %v", err)
@@ -59,9 +62,12 @@ func main() {
 	mux.Handle("PUT /api/v1/machines/{id}", middleware.Auth(token, http.HandlerFunc(h.UpdateMachine)))
 	mux.Handle("DELETE /api/v1/machines/{id}", middleware.Auth(token, http.HandlerFunc(h.DeleteMachine)))
 
+	skipHealthz := func(r *http.Request) bool { return r.URL.Path == "/healthz" }
+	handler := middleware.RequestLogger(slog.Default(), skipHealthz, mux)
+
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("server error: %v", err)
 	}
 }
