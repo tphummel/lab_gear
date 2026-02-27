@@ -154,6 +154,26 @@ func (d *DB) Delete(id string) error {
 	return nil
 }
 
+// CountByKind returns a map of machine kind to count for all machines in the database.
+func (d *DB) CountByKind() (map[string]int, error) {
+	rows, err := d.conn.Query(`SELECT kind, COUNT(*) FROM machines GROUP BY kind`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	for rows.Next() {
+		var kind string
+		var count int
+		if err := rows.Scan(&kind, &count); err != nil {
+			return nil, err
+		}
+		counts[kind] = count
+	}
+	return counts, rows.Err()
+}
+
 func scanRow(row *sql.Row) (*models.Machine, error) {
 	var m models.Machine
 	var createdAt, updatedAt string

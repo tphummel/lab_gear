@@ -8,6 +8,7 @@ import (
 
 	"github.com/tphummel/lab_gear/internal/db"
 	"github.com/tphummel/lab_gear/internal/handlers"
+	"github.com/tphummel/lab_gear/internal/metrics"
 	"github.com/tphummel/lab_gear/internal/middleware"
 )
 
@@ -32,19 +33,34 @@ func main() {
 		log.Fatalf("failed to open database: %v", err)
 	}
 
+	metrics.Register(database)
+
 	h := &handlers.Handler{DB: database}
 
 	mux := http.NewServeMux()
 
-	// Health check — no auth
+	// Prometheus metrics — no auth required
+	mux.Handle("GET /metrics", metrics.Handler())
+
+	// Health check — no auth required
 	mux.HandleFunc("GET /healthz", h.Health)
 
-	// Machine CRUD — Bearer token auth required
-	mux.Handle("POST /api/v1/machines", middleware.Auth(token, http.HandlerFunc(h.CreateMachine)))
-	mux.Handle("GET /api/v1/machines", middleware.Auth(token, http.HandlerFunc(h.ListMachines)))
-	mux.Handle("GET /api/v1/machines/{id}", middleware.Auth(token, http.HandlerFunc(h.GetMachine)))
-	mux.Handle("PUT /api/v1/machines/{id}", middleware.Auth(token, http.HandlerFunc(h.UpdateMachine)))
-	mux.Handle("DELETE /api/v1/machines/{id}", middleware.Auth(token, http.HandlerFunc(h.DeleteMachine)))
+	// Machine CRUD — Bearer token auth + metrics middleware
+	mux.Handle("POST /api/v1/machines",
+		metrics.Middleware("POST /api/v1/machines",
+			middleware.Auth(token, http.HandlerFunc(h.CreateMachine))))
+	mux.Handle("GET /api/v1/machines",
+		metrics.Middleware("GET /api/v1/machines",
+			middleware.Auth(token, http.HandlerFunc(h.ListMachines))))
+	mux.Handle("GET /api/v1/machines/{id}",
+		metrics.Middleware("GET /api/v1/machines/{id}",
+			middleware.Auth(token, http.HandlerFunc(h.GetMachine))))
+	mux.Handle("PUT /api/v1/machines/{id}",
+		metrics.Middleware("PUT /api/v1/machines/{id}",
+			middleware.Auth(token, http.HandlerFunc(h.UpdateMachine))))
+	mux.Handle("DELETE /api/v1/machines/{id}",
+		metrics.Middleware("DELETE /api/v1/machines/{id}",
+			middleware.Auth(token, http.HandlerFunc(h.DeleteMachine))))
 
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("listening on %s", addr)
