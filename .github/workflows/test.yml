@@ -19,14 +19,12 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Download dependencies
-        # GONOSUMDB=* avoids sum-database lookups; go mod download populates
-        # the missing h1: hashes in go.sum so subsequent test runs are
-        # reproducible without network access.
-        run: GONOSUMDB='*' go mod download
-
       - name: Run tests with coverage
-        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+        # -mod=mod lets Go download missing modules and update go.sum during
+        # the run (go.sum has only the .mod hash for modernc.org/sqlite, not
+        # the module archive hash). GONOSUMDB=* skips the checksum database so
+        # private/air-gapped modules are not blocked.
+        run: GONOSUMDB='*' go test -mod=mod -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Print coverage summary
         run: go tool cover -func=coverage.out
@@ -54,11 +52,8 @@ jobs:
         with:
           go-version-file: terraform-provider-lab_gear/go.mod
 
-      - name: Download dependencies
-        run: GONOSUMDB='*' go mod download
-
       - name: Run tests with coverage
-        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+        run: GONOSUMDB='*' go test -mod=mod -race -coverprofile=coverage.out -covermode=atomic ./...
 
       - name: Print coverage summary
         run: go tool cover -func=coverage.out
