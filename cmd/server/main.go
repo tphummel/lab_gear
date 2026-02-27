@@ -19,7 +19,7 @@ func main() {
 
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
-		dbPath = "./lab-assets.db"
+		dbPath = "./lab_gear.db"
 	}
 
 	port := os.Getenv("PORT")
