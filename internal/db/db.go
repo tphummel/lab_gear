@@ -55,6 +55,11 @@ func migrate(conn *sql.DB) error {
 	return err
 }
 
+// Close closes the underlying database connection.
+func (d *DB) Close() error {
+	return d.conn.Close()
+}
+
 // Create inserts a new machine record.
 func (d *DB) Create(m *models.Machine) error {
 	_, err := d.conn.Exec(`
