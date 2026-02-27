@@ -1,2 +1,4 @@
 bin/
 *.db
+terraform-provider-lab_gear/dist/
+terraform-provider-lab_gear/terraform-provider-lab_gear

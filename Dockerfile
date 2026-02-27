@@ -8,7 +8,7 @@ COPY go.mod ./
 RUN GONOSUMDB="*" go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -ldflags="-s -w" -o lab-assets ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=mod -ldflags="-s -w" -o lab_gear ./cmd/server
 
 FROM alpine:3.19
 
@@ -16,8 +16,8 @@ RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
 
-COPY --from=builder /app/lab-assets .
+COPY --from=builder /app/lab_gear .
 
 EXPOSE 8080
 
-CMD ["./lab-assets"]
+CMD ["./lab_gear"]
