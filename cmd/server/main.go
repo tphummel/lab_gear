@@ -66,8 +66,10 @@ func main() {
 	mux.Handle("PUT /api/v1/machines/{id}", middleware.Auth(token, http.HandlerFunc(h.UpdateMachine)))
 	mux.Handle("DELETE /api/v1/machines/{id}", middleware.Auth(token, http.HandlerFunc(h.DeleteMachine)))
 
-	skipHealthz := func(r *http.Request) bool { return r.URL.Path == "/healthz" }
-	handler := middleware.RequestLogger(slog.Default(), skipHealthz, mux)
+	skip := func(r *http.Request) bool {
+		return r.URL.Path == "/healthz" || r.URL.Path == "/metrics"
+	}
+	handler := middleware.RequestLogger(slog.Default(), skip, mux)
 
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("listening on %s", addr)
