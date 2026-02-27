@@ -1,0 +1,359 @@
+openapi: "3.0.3"
+info:
+  title: lab_gear API
+  description: REST API for managing physical machine inventory in a homelab environment.
+  version: "1.0.0"
+  license:
+    name: MIT
+
+servers:
+  - url: /
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    Machine:
+      type: object
+      description: A physical machine in the homelab inventory.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Server-generated unique identifier.
+          example: "7f9c2d4e-1a3b-4e5f-8c6d-2b1a0e9f3c7d"
+        name:
+          type: string
+          description: Machine handle (e.g., pve2, nas01).
+          example: "pve2"
+        kind:
+          type: string
+          enum: [proxmox, nas, sbc, bare_metal, workstation, laptop]
+          description: Machine type.
+          example: "proxmox"
+        make:
+          type: string
+          description: Manufacturer name.
+          example: "Dell"
+        model:
+          type: string
+          description: Model name or number.
+          example: "PowerEdge R720"
+        cpu:
+          type: string
+          description: CPU model.
+          example: "Intel Xeon E5-2670 v2"
+        ram_gb:
+          type: integer
+          description: RAM in gigabytes.
+          example: 128
+        storage_tb:
+          type: number
+          format: double
+          description: Total storage in terabytes.
+          example: 4.0
+        location:
+          type: string
+          description: Physical location.
+          example: "rack-a"
+        serial:
+          type: string
+          description: Serial number.
+          example: "SN-12345"
+        notes:
+          type: string
+          description: Free-form notes.
+          example: "Primary Proxmox hypervisor."
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Creation timestamp (RFC 3339).
+          example: "2024-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Last update timestamp (RFC 3339).
+          example: "2024-06-20T14:22:00Z"
+      required:
+        - id
+        - name
+        - kind
+        - make
+        - model
+        - cpu
+        - ram_gb
+        - storage_tb
+        - location
+        - serial
+        - notes
+        - created_at
+        - updated_at
+
+    MachineInput:
+      type: object
+      description: Fields accepted when creating or updating a machine.
+      required:
+        - name
+        - kind
+        - make
+        - model
+      properties:
+        name:
+          type: string
+          description: Machine handle (e.g., pve2, nas01).
+          example: "pve2"
+        kind:
+          type: string
+          enum: [proxmox, nas, sbc, bare_metal, workstation, laptop]
+          description: Machine type.
+          example: "proxmox"
+        make:
+          type: string
+          description: Manufacturer name.
+          example: "Dell"
+        model:
+          type: string
+          description: Model name or number.
+          example: "PowerEdge R720"
+        cpu:
+          type: string
+          description: CPU model.
+          example: "Intel Xeon E5-2670 v2"
+        ram_gb:
+          type: integer
+          description: RAM in gigabytes.
+          example: 128
+        storage_tb:
+          type: number
+          format: double
+          description: Total storage in terabytes.
+          example: 4.0
+        location:
+          type: string
+          description: Physical location.
+          example: "rack-a"
+        serial:
+          type: string
+          description: Serial number.
+          example: "SN-12345"
+        notes:
+          type: string
+          description: Free-form notes.
+          example: "Primary Proxmox hypervisor."
+
+    Error:
+      type: object
+      description: Error response body.
+      properties:
+        error:
+          type: string
+          description: Human-readable error message.
+          example: "machine not found"
+      required:
+        - error
+
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      description: Returns service health status. No authentication required.
+      operationId: healthCheck
+      security: []
+      tags:
+        - Health
+      responses:
+        "200":
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+              example:
+                status: ok
+
+  /api/v1/machines:
+    get:
+      summary: List machines
+      description: Returns all machines, optionally filtered by kind.
+      operationId: listMachines
+      tags:
+        - Machines
+      parameters:
+        - name: kind
+          in: query
+          required: false
+          description: Filter machines by kind.
+          schema:
+            type: string
+            enum: [proxmox, nas, sbc, bare_metal, workstation, laptop]
+      responses:
+        "200":
+          description: Array of machines (empty array if none exist).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Machine"
+        "400":
+          description: Invalid kind filter value.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    post:
+      summary: Create machine
+      description: Creates a new machine and returns it with server-generated ID and timestamps.
+      operationId: createMachine
+      tags:
+        - Machines
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MachineInput"
+            example:
+              name: pve2
+              kind: proxmox
+              make: Dell
+              model: "PowerEdge R720"
+              cpu: "Intel Xeon E5-2670 v2"
+              ram_gb: 128
+              storage_tb: 4.0
+              location: "rack-a"
+      responses:
+        "201":
+          description: Machine created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Machine"
+        "400":
+          description: Invalid request body or missing required fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/machines/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Machine UUID.
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get machine
+      description: Returns a single machine by ID.
+      operationId: getMachine
+      tags:
+        - Machines
+      responses:
+        "200":
+          description: Machine found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Machine"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Machine not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    put:
+      summary: Update machine
+      description: Replaces all mutable fields of a machine. The ID, created_at, and updated_at fields are managed by the server.
+      operationId: updateMachine
+      tags:
+        - Machines
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MachineInput"
+      responses:
+        "200":
+          description: Machine updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Machine"
+        "400":
+          description: Invalid request body or missing required fields.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Machine not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:
+      summary: Delete machine
+      description: Deletes a machine by ID.
+      operationId: deleteMachine
+      tags:
+        - Machines
+      responses:
+        "204":
+          description: Machine deleted successfully.
+        "401":
+          description: Missing or invalid bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Machine not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
