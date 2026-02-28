@@ -6,6 +6,65 @@ on:
   pull_request:
 
 jobs:
+  lint-service:
+    name: Lint (service)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Tidy dependencies
+        run: GONOSUMDB='*' go mod tidy
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files need formatting (run 'make fmt'):"
+            echo "$unformatted"
+            exit 1
+          fi
+
+  lint-provider:
+    name: Lint (provider)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform-provider-lab_gear
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: terraform-provider-lab_gear/go.mod
+
+      - name: Tidy dependencies
+        run: GONOSUMDB='*' go mod tidy
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files need formatting (run 'gofmt -w .'):"
+            echo "$unformatted"
+            exit 1
+          fi
+
   test-service:
     name: Service tests
     runs-on: ubuntu-latest

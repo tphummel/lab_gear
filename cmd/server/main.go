@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tphummel/lab_gear/internal/db"
@@ -71,9 +76,31 @@ func main() {
 	}
 	handler := middleware.RequestLogger(slog.Default(), skip, mux)
 
-	addr := fmt.Sprintf(":%s", port)
-	log.Printf("listening on %s", addr)
-	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Fatalf("server error: %v", err)
+	srv := &http.Server{
+		Addr:    fmt.Sprintf(":%s", port),
+		Handler: handler,
 	}
+
+	go func() {
+		log.Printf("listening on :%s", port)
+		if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	log.Println("shutting down server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("graceful shutdown failed: %v", err)
+	}
+	if err := database.Close(); err != nil {
+		log.Printf("database close error: %v", err)
+	}
+	log.Println("server stopped")
 }

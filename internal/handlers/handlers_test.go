@@ -611,12 +611,12 @@ func TestCreateMachine_UTF8Fields(t *testing.T) {
 	mux, _ := newTestMux(t)
 
 	payload := map[string]any{
-		"name":     "节点1",                         // Chinese characters
+		"name":     "节点1", // Chinese characters
 		"kind":     "sbc",
-		"make":     "Raspberry Pî",                // Unicode in make
-		"model":    "Modèle-Spécial",              // French accents in model
-		"location": "Büro Regal 3",               // German umlaut
-		"notes":    "正常运行 ✓",                    // Mixed script + emoji
+		"make":     "Raspberry Pî",   // Unicode in make
+		"model":    "Modèle-Spécial", // French accents in model
+		"location": "Büro Regal 3",   // German umlaut
+		"notes":    "正常运行 ✓",         // Mixed script + emoji
 	}
 	body, _ := json.Marshal(payload)
 	w := serve(mux, authReq(http.MethodPost, "/api/v1/machines", body))
