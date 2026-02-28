@@ -103,8 +103,8 @@ func TestDocsAndSpec_ViaFullMux(t *testing.T) {
 	docsMux.HandleFunc("GET /docs", handlers.Docs)
 
 	tests := []struct {
-		path        string
-		wantStatus  int
+		path         string
+		wantStatus   int
 		wantCTPrefix string
 	}{
 		{"/openapi.yaml", http.StatusOK, "application/yaml"},
@@ -123,4 +123,3 @@ func TestDocsAndSpec_ViaFullMux(t *testing.T) {
 		})
 	}
 }
-

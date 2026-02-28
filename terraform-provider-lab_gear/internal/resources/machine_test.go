@@ -485,10 +485,10 @@ func TestMachineResource_ImportState_Found(t *testing.T) {
 	}
 
 	apiMachine := apiclient.Machine{
-		ID:   "uuid-import-1",
-		Name: "pve2",
-		Kind: "proxmox",
-		Make: "HP",
+		ID:    "uuid-import-1",
+		Name:  "pve2",
+		Kind:  "proxmox",
+		Make:  "HP",
 		Model: "DL380",
 	}
 	client := newMockServer(t, func(w http.ResponseWriter, req *http.Request) {
