@@ -99,12 +99,12 @@ func TestProvider_Resources_HasMachine(t *testing.T) {
 
 // --- DataSources ---
 
-func TestProvider_DataSources_IsEmpty(t *testing.T) {
+func TestProvider_DataSources_HasMachines(t *testing.T) {
 	ctx := context.Background()
 	p := provider.New()
 	sources := p.DataSources(ctx)
-	if len(sources) != 0 {
-		t.Errorf("DataSources: got %d, want 0", len(sources))
+	if len(sources) != 1 {
+		t.Errorf("DataSources: got %d, want 1", len(sources))
 	}
 }
 
