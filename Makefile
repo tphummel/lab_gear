@@ -1,7 +1,7 @@
 .PHONY: build run test cover smoke-test docker-build clean lint fmt
 
 build:
-	go build -o bin/lab_gear ./cmd/server
+	go build -ldflags "-X main.version=$$(git describe --tags --always 2>/dev/null || echo dev) -X main.commit=$$(git rev-parse --short HEAD 2>/dev/null || echo none)" -o bin/lab_gear ./cmd/server
 
 run:
 	go run ./cmd/server

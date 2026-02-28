@@ -15,7 +15,9 @@ import (
 
 // Handler holds shared dependencies for HTTP handlers.
 type Handler struct {
-	DB *db.DB
+	DB      *db.DB
+	Version string
+	Commit  string
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -31,14 +33,32 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 // Health handles GET /healthz — no auth required.
+// Returns 503 if the database is unreachable.
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	if err := h.DB.Ping(); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"status": "unavailable",
+			"error":  err.Error(),
+		})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":  "ok",
+		"version": h.Version,
+		"commit":  h.Commit,
+	})
 }
 
 // CreateMachine handles POST /api/v1/machines.
 func (h *Handler) CreateMachine(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	var req models.Machine
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "request body too large")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}
@@ -114,8 +134,14 @@ func (h *Handler) UpdateMachine(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	var req models.Machine
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			writeError(w, http.StatusRequestEntityTooLarge, "request body too large")
+			return
+		}
 		writeError(w, http.StatusBadRequest, "invalid JSON")
 		return
 	}

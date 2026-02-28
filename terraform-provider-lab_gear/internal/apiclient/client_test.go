@@ -238,6 +238,92 @@ func TestClient_SendsBearerToken(t *testing.T) {
 	}
 }
 
+// --- ListMachines ---
+
+func TestClient_ListMachines_All(t *testing.T) {
+	machines := []apiclient.Machine{
+		{ID: "uuid-1", Name: "pve1", Kind: "proxmox", Make: "Dell", Model: "R640"},
+		{ID: "uuid-2", Name: "nas01", Kind: "nas", Make: "Synology", Model: "DS920+"},
+	}
+
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("method: got %q, want GET", r.Method)
+		}
+		if r.URL.Path != "/api/v1/machines" {
+			t.Errorf("path: got %q, want /api/v1/machines", r.URL.Path)
+		}
+		if r.URL.RawQuery != "" {
+			t.Errorf("unexpected query: %q", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(machines)
+	})
+
+	got, err := client.ListMachines(context.Background(), "")
+	if err != nil {
+		t.Fatalf("ListMachines: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len: got %d, want 2", len(got))
+	}
+	if got[0].Name != "pve1" {
+		t.Errorf("machines[0].Name: got %q, want %q", got[0].Name, "pve1")
+	}
+}
+
+func TestClient_ListMachines_WithKindFilter(t *testing.T) {
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "kind=proxmox" {
+			t.Errorf("query: got %q, want %q", r.URL.RawQuery, "kind=proxmox")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode([]apiclient.Machine{
+			{ID: "uuid-1", Name: "pve1", Kind: "proxmox", Make: "Dell", Model: "R640"},
+		})
+	})
+
+	got, err := client.ListMachines(context.Background(), "proxmox")
+	if err != nil {
+		t.Fatalf("ListMachines: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("len: got %d, want 1", len(got))
+	}
+	if got[0].Kind != "proxmox" {
+		t.Errorf("Kind: got %q, want proxmox", got[0].Kind)
+	}
+}
+
+func TestClient_ListMachines_Empty(t *testing.T) {
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode([]apiclient.Machine{})
+	})
+
+	got, err := client.ListMachines(context.Background(), "")
+	if err != nil {
+		t.Fatalf("ListMachines: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("expected empty slice, got %d items", len(got))
+	}
+}
+
+func TestClient_ListMachines_ServerError(t *testing.T) {
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	_, err := client.ListMachines(context.Background(), "")
+	if err == nil {
+		t.Fatal("expected error on non-200 response, got nil")
+	}
+}
+
 // --- Content-Type ---
 
 func TestClient_SetsContentTypeOnWrite(t *testing.T) {

@@ -60,6 +60,11 @@ func (d *DB) Close() error {
 	return d.conn.Close()
 }
 
+// Ping verifies the database connection is alive.
+func (d *DB) Ping() error {
+	return d.conn.Ping()
+}
+
 // Create inserts a new machine record.
 func (d *DB) Create(m *models.Machine) error {
 	_, err := d.conn.Exec(`

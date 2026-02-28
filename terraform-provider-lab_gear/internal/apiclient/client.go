@@ -104,6 +104,24 @@ func (c *Client) UpdateMachine(ctx context.Context, m Machine) (*Machine, error)
 	return &out, json.NewDecoder(resp.Body).Decode(&out)
 }
 
+// ListMachines returns all machines, optionally filtered by kind.
+func (c *Client) ListMachines(ctx context.Context, kind string) ([]Machine, error) {
+	path := "/api/v1/machines"
+	if kind != "" {
+		path += "?kind=" + kind
+	}
+	resp, err := c.doRequest(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("list machines: unexpected status %d", resp.StatusCode)
+	}
+	var out []Machine
+	return out, json.NewDecoder(resp.Body).Decode(&out)
+}
+
 // DeleteMachine removes the machine with the given ID.
 func (c *Client) DeleteMachine(ctx context.Context, id string) error {
 	resp, err := c.doRequest(ctx, http.MethodDelete, "/api/v1/machines/"+id, nil)
