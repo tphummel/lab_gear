@@ -1,192 +1,113 @@
-# lab-assets: Design Document
+# lab_gear
 
-## Overview
+A lightweight REST API for tracking physical machines in a homelab, paired with a custom Terraform provider for managing machine inventory as infrastructure-as-code.
 
-**lab-assets** is a lightweight REST API service for tracking physical machines in a homelab environment. It is paired with a custom Terraform provider (`lab`) that enables machine inventory to be managed as infrastructure-as-code, integrated into an existing Gitea + Atlantis GitOps workflow.
+## What it is
 
-The primary resource is `lab_machine` — a physical device such as a Proxmox hypervisor, NAS, Raspberry Pi, bare metal server, workstation, or laptop.
+**lab_gear** (service: `lab-assets`) keeps a simple inventory of physical machines — hypervisors, NAS hosts, SBCs, bare metal servers, workstations, and laptops. It exposes them via a REST API backed by SQLite.
 
-## Problem Statement
+The companion **`terraform-provider-lab_gear`** lets you declare machines in Terraform HCL, review changes through pull requests via Atlantis, and reference physical hosts as explicit dependencies of logical infrastructure (e.g. an LXC container referencing the Proxmox node it runs on).
 
-Physical machine inventory in the homelab is currently implicit. When Terraform provisions an LXC container on `pve2`, there is no formal record of what `pve2` actually is — its hardware specs, location, serial number, or even that it exists. As the homelab grows to include NAS hosts, SBCs, bare metal servers, and workstations, having a single source of truth for physical assets becomes increasingly valuable for capacity planning, dependency tracking, and network policy.
+## Service
 
-## Goals
+### Running locally
 
-- Provide a queryable inventory of all physical machines in the homelab.
-- Expose machines as Terraform resources so physical inventory is version-controlled and reviewed via Atlantis pull requests.
-- Allow LXC and other provisioning resources to reference machine records, creating an explicit dependency between logical infrastructure and physical hosts.
-- Keep it simple: one resource type, one table, minimal operational overhead.
-
-## Non-Goals
-
-- Replacing UniFi, Proxmox, or any other control plane.
-- Monitoring, alerting, or health checking.
-- Managing network devices, UPS units, or other non-compute assets (these may be added later as separate resource types).
-- Public registry publishing for the Terraform provider.
-
-## Architecture
-
-```
-┌──────────────────────┐
-│  Gitea Repository    │
-│  (Terraform HCL)     │
-└──────────┬───────────┘
-           │ PR
-           ▼
-┌──────────────────────┐
-│  Atlantis            │
-│  (plan/apply)        │
-└──────────┬───────────┘
-           │ API calls
-           ▼
-┌──────────────────────┐     ┌─────────────┐
-│  lab-assets          │────▶│  SQLite     │
-│  (Go, port 8080)     │     │  (WAL mode) │
-└──────────────────────┘     └─────────────┘
-           │
-     Bearer token auth
-     Caddy reverse proxy
+```bash
+export API_TOKEN=secret
+go run ./cmd/server
 ```
 
-The service runs in a dedicated LXC container, fronted by Caddy with Cloudflare DNS challenge for TLS. Atlantis calls the API via the `lab` Terraform provider during plan and apply.
+The service listens on port `8080` by default.
 
-## Resource: `lab_machine`
+### Environment variables
 
-### Fields
+| Variable    | Required | Default           | Description               |
+|-------------|----------|-------------------|---------------------------|
+| `API_TOKEN` | Yes      | —                 | Bearer token for API auth |
+| `DB_PATH`   | No       | `./lab-assets.db` | Path to SQLite database   |
+| `PORT`      | No       | `8080`            | Listen port               |
 
-|Field       |Type    |Required|Mutable|Description                                      |
-|------------|--------|--------|-------|-------------------------------------------------|
-|`id`        |string  |—       |No     |Server-generated UUID. Primary key.              |
-|`name`      |string  |Yes     |Yes    |Handle for this machine (e.g. `pve2`, `nas01`).  |
-|`kind`      |string  |Yes     |Yes    |Machine type. See valid kinds below.             |
-|`make`      |string  |Yes     |Yes    |Manufacturer (e.g. Dell, Synology, Raspberry Pi).|
-|`model`     |string  |Yes     |Yes    |Model name or number.                            |
-|`cpu`       |string  |No      |Yes    |CPU model.                                       |
-|`ram_gb`    |integer |No      |Yes    |RAM in gigabytes.                                |
-|`storage_tb`|float   |No      |Yes    |Total storage in terabytes.                      |
-|`location`  |string  |No      |Yes    |Physical location (e.g. office rack, closet).    |
-|`serial`    |string  |No      |Yes    |Serial number.                                   |
-|`notes`     |string  |No      |Yes    |Free-form notes.                                 |
-|`created_at`|datetime|—       |No     |Server-generated creation timestamp.             |
-|`updated_at`|datetime|—       |No     |Server-generated last update timestamp.          |
+Use `DB_PATH=:memory:` for an ephemeral in-memory database (useful for testing).
 
-### Valid Kinds
+### Building
 
-|Kind         |Description                                 |
-|-------------|--------------------------------------------|
-|`proxmox`    |Proxmox VE hypervisor node                  |
-|`nas`        |Network-attached storage (Synology, TrueNAS)|
-|`sbc`        |Single-board computer (Raspberry Pi, etc.)  |
-|`bare_metal` |Bare metal server, not running a hypervisor |
-|`workstation`|Desktop workstation                         |
-|`laptop`     |Laptop                                      |
+```bash
+make build          # produces bin/lab_gear
+make docker-build   # builds Docker image tagged lab_gear
+```
 
-### Idempotency
+### Testing
 
-The `id` field is a server-generated UUID assigned at creation time. Terraform stores this ID in state after the initial `POST`. Subsequent `terraform plan` runs read by ID and diff against desired state. This makes the resource naturally idempotent — Terraform knows whether to create, update, or no-op based on the ID in state.
+```bash
+make test           # run unit tests
+make cover          # run tests with HTML coverage report
+make smoke-test     # build + run k6 smoke tests against a live server
+```
 
-Unlike a name-keyed idempotency model, this allows multiple machines to share a name (though that would be unusual) and avoids coupling the API’s identity model to any particular client convention.
+## API
 
-## API Design
+Base URL: `http://localhost:8080`
 
-Base path: `/api/v1`
+All endpoints except `/healthz` require:
+
+```
+Authorization: Bearer <API_TOKEN>
+```
 
 ### Endpoints
 
-|Method  |Path                   |Description           |Response   |
-|--------|-----------------------|----------------------|-----------|
-|`GET`   |`/healthz`             |Health check (no auth)|`200`      |
-|`POST`  |`/api/v1/machines`     |Create a machine      |`201`      |
-|`GET`   |`/api/v1/machines`     |List all machines     |`200`      |
-|`GET`   |`/api/v1/machines/{id}`|Get a machine by ID   |`200`/`404`|
-|`PUT`   |`/api/v1/machines/{id}`|Update a machine      |`200`/`404`|
-|`DELETE`|`/api/v1/machines/{id}`|Delete a machine      |`204`/`404`|
+| Method   | Path                    | Description            |
+|----------|-------------------------|------------------------|
+| `GET`    | `/healthz`              | Health check (no auth) |
+| `POST`   | `/api/v1/machines`      | Create a machine       |
+| `GET`    | `/api/v1/machines`      | List all machines      |
+| `GET`    | `/api/v1/machines/{id}` | Get a machine by ID    |
+| `PUT`    | `/api/v1/machines/{id}` | Update a machine       |
+| `DELETE` | `/api/v1/machines/{id}` | Delete a machine       |
 
-### Query Parameters
+Filter by kind: `GET /api/v1/machines?kind=proxmox`
 
-`GET /api/v1/machines` supports an optional `?kind=` filter to list machines of a specific type.
+### Create a machine
 
-### Authentication
-
-All endpoints except `/healthz` require a `Authorization: Bearer <token>` header. The token is a static secret loaded from the `API_TOKEN` environment variable. This is sufficient for an internal service behind Caddy/Cloudflare with a single consumer (Atlantis).
-
-### Request/Response Format
-
-All request and response bodies are JSON. Timestamps are RFC 3339.
-
-**Create request:**
-
-```json
-{
-  "name": "pve2",
-  "kind": "proxmox",
-  "make": "Dell",
-  "model": "OptiPlex 7050",
-  "cpu": "i7-7700",
-  "ram_gb": 32,
-  "storage_tb": 1.0,
-  "location": "office rack"
-}
+```bash
+curl -s -X POST http://localhost:8080/api/v1/machines \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "pve2",
+    "kind": "proxmox",
+    "make": "Dell",
+    "model": "OptiPlex 7050",
+    "cpu": "i7-7700",
+    "ram_gb": 32,
+    "storage_tb": 1.0,
+    "location": "office rack"
+  }'
 ```
 
-**Response:**
+### List machines
 
-```json
-{
-  "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-  "name": "pve2",
-  "kind": "proxmox",
-  "make": "Dell",
-  "model": "OptiPlex 7050",
-  "cpu": "i7-7700",
-  "ram_gb": 32,
-  "storage_tb": 1.0,
-  "location": "office rack",
-  "serial": "",
-  "notes": "",
-  "created_at": "2026-02-26T12:00:00Z",
-  "updated_at": "2026-02-26T12:00:00Z"
-}
+```bash
+curl -s http://localhost:8080/api/v1/machines \
+  -H "Authorization: Bearer $API_TOKEN"
 ```
 
-### Error Format
+### Machine kinds
 
-```json
-{
-  "error": "name, kind, make, and model are required"
-}
-```
-
-## Database
-
-SQLite in WAL mode. Single table.
-
-```sql
-CREATE TABLE machines (
-    id         TEXT PRIMARY KEY,
-    name       TEXT NOT NULL,
-    kind       TEXT NOT NULL,
-    make       TEXT NOT NULL,
-    model      TEXT NOT NULL,
-    cpu        TEXT NOT NULL DEFAULT '',
-    ram_gb     INTEGER NOT NULL DEFAULT 0,
-    storage_tb REAL NOT NULL DEFAULT 0,
-    location   TEXT NOT NULL DEFAULT '',
-    serial     TEXT NOT NULL DEFAULT '',
-    notes      TEXT NOT NULL DEFAULT '',
-    created_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL
-);
-
-CREATE INDEX idx_machines_kind ON machines(kind);
-CREATE INDEX idx_machines_name ON machines(name);
-```
-
-The pure-Go SQLite driver (`modernc.org/sqlite`) is used to avoid CGO and simplify cross-compilation and container builds.
+| Kind          | Description                                  |
+|---------------|----------------------------------------------|
+| `proxmox`     | Proxmox VE hypervisor node                   |
+| `nas`         | Network-attached storage (Synology, TrueNAS) |
+| `sbc`         | Single-board computer (Raspberry Pi, etc.)   |
+| `bare_metal`  | Bare metal server, not running a hypervisor  |
+| `workstation` | Desktop workstation                          |
+| `laptop`       | Laptop                                       |
 
 ## Terraform Provider
 
-### Provider Configuration
+The provider lives in `terraform-provider-lab_gear/`.
+
+### Configuration
 
 ```hcl
 terraform {
@@ -199,18 +120,16 @@ terraform {
 
 provider "lab" {
   endpoint = "https://assets.lab.local"
-  # api_key via LAB_API_KEY env var
+  # api_key can also be set via LAB_API_KEY env var
 }
 ```
 
-|Config    |Env Var       |Description |
-|----------|--------------|------------|
-|`endpoint`|`LAB_ENDPOINT`|API base URL|
-|`api_key` |`LAB_API_KEY` |Bearer token|
+| Config     | Env Var        | Description  |
+|------------|----------------|--------------|
+| `endpoint` | `LAB_ENDPOINT` | API base URL |
+| `api_key`  | `LAB_API_KEY`  | Bearer token |
 
-Environment variables take lowest precedence; explicit config overrides them.
-
-### Resource: `lab_machine`
+### Declaring machines
 
 ```hcl
 resource "lab_machine" "pve2" {
@@ -240,35 +159,9 @@ resource "lab_machine" "pi01" {
 }
 ```
 
-### CRUD Mapping
-
-|Terraform Operation|HTTP Method|Path                   |
-|-------------------|-----------|-----------------------|
-|Create             |`POST`     |`/api/v1/machines`     |
-|Read               |`GET`      |`/api/v1/machines/{id}`|
-|Update             |`PUT`      |`/api/v1/machines/{id}`|
-|Delete             |`DELETE`   |`/api/v1/machines/{id}`|
-
-### Import
-
-Existing machines can be imported by their server-generated ID:
-
-```bash
-terraform import lab_machine.pve2 f47ac10b-58cc-4372-a567-0e02b2c3d479
-```
-
-### Integration with LXC Provisioning
-
-The primary integration point is referencing `lab_machine` names as Proxmox target nodes:
+### Referencing machines from other resources
 
 ```hcl
-resource "lab_machine" "pve2" {
-  name = "pve2"
-  kind = "proxmox"
-  make = "Dell"
-  model = "OptiPlex 7050"
-}
-
 resource "proxmox_lxc" "gitea" {
   target_node = lab_machine.pve2.name
   hostname    = "gitea"
@@ -276,92 +169,23 @@ resource "proxmox_lxc" "gitea" {
 }
 ```
 
-This creates a Terraform dependency: the LXC container explicitly depends on the physical host existing in inventory. Deleting or renaming a host in the inventory will surface in `terraform plan` as a change to all containers running on it.
+This makes the LXC container's Terraform plan dependent on the physical host record. If the host is renamed or removed from inventory, `terraform plan` will surface it as a change.
 
-## Service Implementation
+### Importing existing machines
 
-### Technology Choices
-
-|Component      |Choice                      |Rationale                                                  |
-|---------------|----------------------------|-----------------------------------------------------------|
-|Language       |Go 1.22                     |Single binary, easy cross-compilation, good stdlib HTTP    |
-|Database       |SQLite (WAL mode)           |Zero-ops, file-based, sufficient for single-writer workload|
-|SQLite driver  |`modernc.org/sqlite`        |Pure Go, no CGO required                                   |
-|HTTP router    |`net/http.ServeMux`         |Standard library, no dependencies                          |
-|UUID generation|`github.com/google/uuid`    |Well-tested, v4 UUIDs                                      |
-|Container      |Alpine-based multi-stage    |Minimal image size, no CGO means static binary works       |
-|Provider SDK   |`terraform-plugin-framework`|HashiCorp’s current recommended SDK for new providers      |
-
-### Project Structure
-
-```
-lab-assets/
-├── cmd/server/main.go          # Entrypoint
-├── internal/
-│   ├── db/db.go                # SQLite operations
-│   ├── handlers/handlers.go    # HTTP handlers
-│   ├── middleware/auth.go      # Bearer token auth
-│   └── models/models.go       # Data types
-├── Dockerfile
-├── Makefile
-└── go.mod
-
-terraform-provider-lab/
-├── main.go                     # Provider server entrypoint
-├── internal/
-│   ├── provider/
-│   │   ├── provider.go         # Provider config and schema
-│   │   └── client.go           # HTTP client for lab-assets API
-│   └── resources/
-│       └── machine.go          # lab_machine resource CRUD
-├── Makefile
-└── go.mod
+```bash
+terraform import lab_machine.pve2 <uuid>
 ```
 
-### Environment Variables
+The UUID is the `id` returned by the API when the machine was created.
 
-**Service (lab-assets):**
+### Building the provider
 
-|Variable   |Required|Default          |Description              |
-|-----------|--------|-----------------|-------------------------|
-|`API_TOKEN`|Yes     |—                |Bearer token for API auth|
-|`DB_PATH`  |No      |`./lab-assets.db`|Path to SQLite database  |
-|`PORT`     |No      |`8080`           |Listen port              |
-
-**Provider (terraform-provider-lab):**
-
-|Variable      |Required|Description                 |
-|--------------|--------|----------------------------|
-|`LAB_ENDPOINT`|Yes*    |API base URL (or set in HCL)|
-|`LAB_API_KEY` |Yes*    |Bearer token (or set in HCL)|
+```bash
+cd terraform-provider-lab_gear
+make build
+```
 
 ## Deployment
 
-### LXC Container
-
-The service runs in a dedicated LXC container provisioned via Terraform. The SQLite database file should be stored on a persistent volume or bind mount to survive container recreation.
-
-### Reverse Proxy
-
-Caddy handles TLS termination with a Cloudflare DNS challenge, consistent with other homelab services. Example Caddyfile snippet:
-
-```
-assets.lab.local {
-    reverse_proxy localhost:8080
-    tls {
-        dns cloudflare {env.CF_API_TOKEN}
-    }
-}
-```
-
-### Atlantis Integration
-
-The `LAB_ENDPOINT` and `LAB_API_KEY` environment variables are set in the Atlantis server environment. No special Atlantis configuration is required — the provider works like any other Terraform provider.
-
-## Future Considerations
-
-- **Additional resource types**: `lab_switch`, `lab_ups`, `lab_accesspoint` could be added as the inventory grows. Each would be a separate table and Terraform resource.
-- **Data sources**: A `data.lab_machines` data source for querying/filtering machines without managing them (useful for read-only references in other modules).
-- **Structured logging**: Add `slog` middleware for request logging before production use.
-- **Backup**: Periodic SQLite backup via Litestream or a simple cron job copying the database file.
-- **Migration framework**: If the schema evolves, a proper migration system (goose, golang-migrate) would replace the current `CREATE TABLE IF NOT EXISTS` approach.
+The service is designed to run in a dedicated LXC container behind a Caddy reverse proxy. See [DESIGN.md](DESIGN.md) for the full architecture, database schema, and deployment details.
