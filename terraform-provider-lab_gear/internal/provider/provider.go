@@ -30,7 +30,7 @@ func (p *labGearProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 		Description: "Manages physical machine inventory in the lab_gear service.",
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
-				Description: "Base URL of the lab_gear API (e.g. https://assets.lab.local). " +
+				Description: "Base URL of the lab_gear API (e.g. https://gear.lab.local). " +
 					"Can also be set via the LAB_ENDPOINT environment variable.",
 				Optional: true,
 			},
