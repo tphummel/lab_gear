@@ -112,27 +112,27 @@ The provider lives in `terraform-provider-lab_gear/`.
 ```hcl
 terraform {
   required_providers {
-    lab = {
-      source = "registry.terraform.io/tomflanagan/lab"
+    lab_gear = {
+      source = "registry.terraform.io/tphummel/lab_gear"
     }
   }
 }
 
-provider "lab" {
+provider "lab_gear" {
   endpoint = "https://gear.lab.local"
-  # api_key can also be set via LAB_API_KEY env var
+  # token can also be set via LAB_API_KEY env var
 }
 ```
 
 | Config     | Env Var        | Description  |
 |------------|----------------|--------------|
 | `endpoint` | `LAB_ENDPOINT` | API base URL |
-| `api_key`  | `LAB_API_KEY`  | Bearer token |
+| `token`    | `LAB_API_KEY`  | Bearer token |
 
 ### Declaring machines
 
 ```hcl
-resource "lab_machine" "pve2" {
+resource "lab_gear_machine" "pve2" {
   name       = "pve2"
   kind       = "proxmox"
   make       = "Dell"
@@ -143,14 +143,14 @@ resource "lab_machine" "pve2" {
   location   = "office rack"
 }
 
-resource "lab_machine" "nas01" {
+resource "lab_gear_machine" "nas01" {
   name  = "nas01"
   kind  = "nas"
   make  = "Synology"
   model = "DS920+"
 }
 
-resource "lab_machine" "pi01" {
+resource "lab_gear_machine" "pi01" {
   name   = "pi01"
   kind   = "sbc"
   make   = "Raspberry Pi"
@@ -163,7 +163,7 @@ resource "lab_machine" "pi01" {
 
 ```hcl
 resource "proxmox_lxc" "gitea" {
-  target_node = lab_machine.pve2.name
+  target_node = lab_gear_machine.pve2.name
   hostname    = "gitea"
   # ...
 }
@@ -174,7 +174,7 @@ This makes the LXC container's Terraform plan dependent on the physical host rec
 ### Importing existing machines
 
 ```bash
-terraform import lab_machine.pve2 <uuid>
+terraform import lab_gear_machine.pve2 <uuid>
 ```
 
 The UUID is the `id` returned by the API when the machine was created.

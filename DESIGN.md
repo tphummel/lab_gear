@@ -191,29 +191,29 @@ The pure-Go SQLite driver (`modernc.org/sqlite`) is used to avoid CGO and simpli
 ```hcl
 terraform {
   required_providers {
-    lab = {
-      source = "registry.terraform.io/tomflanagan/lab"
+    lab_gear = {
+      source = "registry.terraform.io/tphummel/lab_gear"
     }
   }
 }
 
-provider "lab" {
+provider "lab_gear" {
   endpoint = "https://gear.lab.local"
-  # api_key via LAB_API_KEY env var
+  # token via LAB_API_KEY env var
 }
 ```
 
 |Config    |Env Var       |Description |
 |----------|--------------|------------|
 |`endpoint`|`LAB_ENDPOINT`|API base URL|
-|`api_key` |`LAB_API_KEY` |Bearer token|
+|`token`   |`LAB_API_KEY` |Bearer token|
 
 Environment variables take lowest precedence; explicit config overrides them.
 
-### Resource: `lab_machine`
+### Resource: `lab_gear_machine`
 
 ```hcl
-resource "lab_machine" "pve2" {
+resource "lab_gear_machine" "pve2" {
   name       = "pve2"
   kind       = "proxmox"
   make       = "Dell"
@@ -224,14 +224,14 @@ resource "lab_machine" "pve2" {
   location   = "office rack"
 }
 
-resource "lab_machine" "nas01" {
+resource "lab_gear_machine" "nas01" {
   name  = "nas01"
   kind  = "nas"
   make  = "Synology"
   model = "DS920+"
 }
 
-resource "lab_machine" "pi01" {
+resource "lab_gear_machine" "pi01" {
   name   = "pi01"
   kind   = "sbc"
   make   = "Raspberry Pi"
@@ -254,7 +254,7 @@ resource "lab_machine" "pi01" {
 Existing machines can be imported by their server-generated ID:
 
 ```bash
-terraform import lab_machine.pve2 f47ac10b-58cc-4372-a567-0e02b2c3d479
+terraform import lab_gear_machine.pve2 f47ac10b-58cc-4372-a567-0e02b2c3d479
 ```
 
 ### Integration with LXC Provisioning
@@ -262,7 +262,7 @@ terraform import lab_machine.pve2 f47ac10b-58cc-4372-a567-0e02b2c3d479
 The primary integration point is referencing `lab_machine` names as Proxmox target nodes:
 
 ```hcl
-resource "lab_machine" "pve2" {
+resource "lab_gear_machine" "pve2" {
   name = "pve2"
   kind = "proxmox"
   make = "Dell"
@@ -270,7 +270,7 @@ resource "lab_machine" "pve2" {
 }
 
 resource "proxmox_lxc" "gitea" {
-  target_node = lab_machine.pve2.name
+  target_node = lab_gear_machine.pve2.name
   hostname    = "gitea"
   # ...
 }
@@ -361,7 +361,7 @@ The `LAB_ENDPOINT` and `LAB_API_KEY` environment variables are set in the Atlant
 ## Future Considerations
 
 - **Additional resource types**: `lab_switch`, `lab_ups`, `lab_accesspoint` could be added as the inventory grows. Each would be a separate table and Terraform resource.
-- **Data sources**: A `data.lab_machines` data source for querying/filtering machines without managing them (useful for read-only references in other modules).
+- **Data sources**: A `data.lab_gear_machines` data source for querying/filtering machines without managing them (useful for read-only references in other modules).
 - **Structured logging**: Add `slog` middleware for request logging before production use.
 - **Backup**: Periodic SQLite backup via Litestream or a simple cron job copying the database file.
 - **Migration framework**: If the schema evolves, a proper migration system (goose, golang-migrate) would replace the current `CREATE TABLE IF NOT EXISTS` approach.
