@@ -93,6 +93,43 @@ func TestHealth_NoAuth(t *testing.T) {
 	}
 }
 
+// Health returns version/commit fields in the response body.
+func TestHealth_IncludesVersionInfo(t *testing.T) {
+	mux, _ := newTestMux(t)
+	w := serve(mux, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	var body map[string]string
+	decodeBody(t, w, &body)
+	// Version and Commit default to empty string when not set on the handler.
+	if _, ok := body["version"]; !ok {
+		t.Error("health response missing 'version' field")
+	}
+	if _, ok := body["commit"]; !ok {
+		t.Error("health response missing 'commit' field")
+	}
+}
+
+// Health returns 503 when the database is closed/unavailable.
+func TestHealth_DBDown(t *testing.T) {
+	_, d := newTestMux(t)
+	// Close the DB manually to simulate it being unavailable.
+	d.Close()
+
+	h := &handlers.Handler{DB: d}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", h.Health)
+
+	w := serve(mux, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status: got %d, want 503", w.Code)
+	}
+	var body map[string]string
+	decodeBody(t, w, &body)
+	if body["status"] != "unavailable" {
+		t.Errorf("status field: got %q, want %q", body["status"], "unavailable")
+	}
+}
+
 // --- Auth guard on protected routes ---
 
 func TestProtectedRoutes_RequireAuth(t *testing.T) {

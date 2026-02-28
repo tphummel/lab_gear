@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/tphummel/lab_gear/terraform-provider-lab_gear/internal/apiclient"
+	"github.com/tphummel/lab_gear/terraform-provider-lab_gear/internal/datasources"
 	"github.com/tphummel/lab_gear/terraform-provider-lab_gear/internal/resources"
 )
 
@@ -87,5 +88,7 @@ func (p *labGearProvider) Resources(_ context.Context) []func() resource.Resourc
 }
 
 func (p *labGearProvider) DataSources(_ context.Context) []func() datasource.DataSource {
-	return nil
+	return []func() datasource.DataSource{
+		datasources.NewMachinesDataSource,
+	}
 }

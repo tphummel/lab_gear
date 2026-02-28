@@ -18,6 +18,12 @@ import (
 	"github.com/tphummel/lab_gear/internal/middleware"
 )
 
+// version and commit are injected at build time via -ldflags.
+var (
+	version = "dev"
+	commit  = "none"
+)
+
 // loadConfig reads service configuration from environment variables and
 // applies defaults. It returns an error when a required variable is absent.
 func loadConfig() (token, dbPath, port string, err error) {
@@ -50,7 +56,7 @@ func main() {
 		log.Fatalf("failed to open database: %v", err)
 	}
 
-	h := &handlers.Handler{DB: database}
+	h := &handlers.Handler{DB: database, Version: version, Commit: commit}
 
 	mux := http.NewServeMux()
 
@@ -77,8 +83,12 @@ func main() {
 	handler := middleware.RequestLogger(slog.Default(), skip, mux)
 
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%s", port),
-		Handler: handler,
+		Addr:              fmt.Sprintf(":%s", port),
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	go func() {
