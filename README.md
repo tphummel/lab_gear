@@ -4,7 +4,7 @@ A lightweight REST API for tracking physical machines in a homelab, paired with 
 
 ## What it is
 
-**lab_gear** (service: `lab-assets`) keeps a simple inventory of physical machines — hypervisors, NAS hosts, SBCs, bare metal servers, workstations, and laptops. It exposes them via a REST API backed by SQLite.
+**lab_gear** keeps a simple inventory of physical machines — hypervisors, NAS hosts, SBCs, bare metal servers, workstations, and laptops. It exposes them via a REST API backed by SQLite.
 
 The companion **`terraform-provider-lab_gear`** lets you declare machines in Terraform HCL, review changes through pull requests via Atlantis, and reference physical hosts as explicit dependencies of logical infrastructure (e.g. an LXC container referencing the Proxmox node it runs on).
 
@@ -24,7 +24,7 @@ The service listens on port `8080` by default.
 | Variable    | Required | Default           | Description               |
 |-------------|----------|-------------------|---------------------------|
 | `API_TOKEN` | Yes      | —                 | Bearer token for API auth |
-| `DB_PATH`   | No       | `./lab-assets.db` | Path to SQLite database   |
+| `DB_PATH`   | No       | `./lab_gear.db`   | Path to SQLite database   |
 | `PORT`      | No       | `8080`            | Listen port               |
 
 Use `DB_PATH=:memory:` for an ephemeral in-memory database (useful for testing).
@@ -119,7 +119,7 @@ terraform {
 }
 
 provider "lab" {
-  endpoint = "https://assets.lab.local"
+  endpoint = "https://gear.lab.local"
   # api_key can also be set via LAB_API_KEY env var
 }
 ```

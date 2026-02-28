@@ -1,8 +1,8 @@
-# lab-assets: Design Document
+# lab_gear: Design Document
 
 ## Overview
 
-**lab-assets** is a lightweight REST API service for tracking physical machines in a homelab environment. It is paired with a custom Terraform provider (`lab`) that enables machine inventory to be managed as infrastructure-as-code, integrated into an existing Gitea + Atlantis GitOps workflow.
+**lab_gear** is a lightweight REST API service for tracking physical machines in a homelab environment. It is paired with a custom Terraform provider (`lab`) that enables machine inventory to be managed as infrastructure-as-code, integrated into an existing Gitea + Atlantis GitOps workflow.
 
 The primary resource is `lab_machine` — a physical device such as a Proxmox hypervisor, NAS, Raspberry Pi, bare metal server, workstation, or laptop.
 
@@ -40,7 +40,7 @@ Physical machine inventory in the homelab is currently implicit. When Terraform 
            │ API calls
            ▼
 ┌──────────────────────┐     ┌─────────────┐
-│  lab-assets          │────▶│  SQLite     │
+│  lab_gear            │────▶│  SQLite     │
 │  (Go, port 8080)     │     │  (WAL mode) │
 └──────────────────────┘     └─────────────┘
            │
@@ -198,7 +198,7 @@ terraform {
 }
 
 provider "lab" {
-  endpoint = "https://assets.lab.local"
+  endpoint = "https://gear.lab.local"
   # api_key via LAB_API_KEY env var
 }
 ```
@@ -295,7 +295,7 @@ This creates a Terraform dependency: the LXC container explicitly depends on the
 ### Project Structure
 
 ```
-lab-assets/
+lab_gear/
 ├── cmd/server/main.go          # Entrypoint
 ├── internal/
 │   ├── db/db.go                # SQLite operations
@@ -311,7 +311,7 @@ terraform-provider-lab/
 ├── internal/
 │   ├── provider/
 │   │   ├── provider.go         # Provider config and schema
-│   │   └── client.go           # HTTP client for lab-assets API
+│   │   └── client.go           # HTTP client for lab_gear API
 │   └── resources/
 │       └── machine.go          # lab_machine resource CRUD
 ├── Makefile
@@ -320,12 +320,12 @@ terraform-provider-lab/
 
 ### Environment Variables
 
-**Service (lab-assets):**
+**Service (lab_gear):**
 
 |Variable   |Required|Default          |Description              |
 |-----------|--------|-----------------|-------------------------|
 |`API_TOKEN`|Yes     |—                |Bearer token for API auth|
-|`DB_PATH`  |No      |`./lab-assets.db`|Path to SQLite database  |
+|`DB_PATH`  |No      |`./lab_gear.db`  |Path to SQLite database  |
 |`PORT`     |No      |`8080`           |Listen port              |
 
 **Provider (terraform-provider-lab):**
@@ -346,7 +346,7 @@ The service runs in a dedicated LXC container provisioned via Terraform. The SQL
 Caddy handles TLS termination with a Cloudflare DNS challenge, consistent with other homelab services. Example Caddyfile snippet:
 
 ```
-assets.lab.local {
+gear.lab.local {
     reverse_proxy localhost:8080
     tls {
         dns cloudflare {env.CF_API_TOKEN}
