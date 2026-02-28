@@ -1,10 +1,10 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Copy module definition and download dependencies.
+# Copy module definitions and download dependencies.
 # GONOSUMDB=* avoids checksum database lookups for internal/air-gapped builds.
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN GONOSUMDB="*" go mod download
 
 COPY . .
