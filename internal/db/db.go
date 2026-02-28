@@ -165,8 +165,15 @@ func scanRow(row *sql.Row) (*models.Machine, error) {
 	); err != nil {
 		return nil, err
 	}
-	m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	m.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	var err error
+	m.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse created_at %q: %w", createdAt, err)
+	}
+	m.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse updated_at %q: %w", updatedAt, err)
+	}
 	return &m, nil
 }
 
@@ -181,7 +188,14 @@ func scanRows(rows *sql.Rows) (*models.Machine, error) {
 	); err != nil {
 		return nil, err
 	}
-	m.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	m.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	var err error
+	m.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse created_at %q: %w", createdAt, err)
+	}
+	m.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("parse updated_at %q: %w", updatedAt, err)
+	}
 	return &m, nil
 }

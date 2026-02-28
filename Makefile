@@ -1,4 +1,4 @@
-.PHONY: build run test cover smoke-test docker-build
+.PHONY: build run test cover smoke-test docker-build clean lint fmt
 
 build:
 	go build -o bin/lab_gear ./cmd/server
@@ -29,3 +29,12 @@ smoke-test: build
 
 docker-build:
 	docker build -t lab_gear .
+
+clean:
+	rm -rf bin/ coverage.out coverage.html
+
+lint:
+	go vet ./...
+
+fmt:
+	gofmt -w .
